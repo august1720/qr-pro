@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Download, Share2, Type, Link, Wifi, Phone, Mail, 
   MessageCircle, Send, PhoneCall, MessageSquare, 
-  Facebook, Instagram, Twitter, Music2, Youtube, Linkedin, Ghost, Gamepad2, Twitch, Cat
+  Facebook, Instagram, Twitter, Music2, Youtube, Linkedin, Ghost, Gamepad2, Twitch, Cat, ImagePlus, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRDataType, QRHistoryItem } from '../types';
@@ -43,6 +43,22 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
   const [value, setValue] = useState('');
   const [wifiPass, setWifiPass] = useState('');
   const [wifiType, setWifiType] = useState('WPA');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setLogoUrl(url);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    if (logoUrl) {
+      URL.revokeObjectURL(logoUrl);
+    }
+    setLogoUrl(null);
+  };
   
   // Format data based on type
   const getFormattedData = () => {
@@ -227,6 +243,41 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
         )}
       </div>
 
+      {/* Logo Upload Section */}
+      <div className="space-y-4">
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 ml-1">
+          Add Logo (Optional)
+        </label>
+        
+        {!logoUrl ? (
+          <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              <ImagePlus className="w-6 h-6 text-slate-400 mb-2" />
+              <p className="text-xs text-slate-500 dark:text-slate-400">Click or drag image to upload (PNG, JPG)</p>
+            </div>
+            <input 
+              type="file" 
+              className="hidden" 
+              accept="image/png, image/jpeg, image/jpg" 
+              onChange={handleLogoUpload}
+            />
+          </label>
+        ) : (
+          <div className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800/50">
+            <div className="flex items-center space-x-3">
+              <img src={logoUrl} alt="Logo preview" className="w-10 h-10 object-contain rounded-lg bg-white border border-slate-100 dark:border-slate-700" />
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Custom Logo</span>
+            </div>
+            <button 
+              onClick={handleRemoveLogo}
+              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Preview Section */}
       <AnimatePresence mode="popLayout">
         {formattedData && (
@@ -243,6 +294,14 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
                 level="H"
                 ref={svgRef}
                 className="w-full h-full"
+                {...(logoUrl ? {
+                  imageSettings: {
+                    src: logoUrl,
+                    height: 48,
+                    width: 48,
+                    excavate: true,
+                  }
+                } : {})}
               />
             </div>
             

@@ -1,18 +1,19 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react'; 
-import { QrCode, ScanLine, Clock } from 'lucide-react';
+import { QrCode, ScanLine, Clock, Settings } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 
 interface BottomNavProps {
-  activeTab: 'generate' | 'scan' | 'history';
-  onChangeTab: (tab: 'generate' | 'scan' | 'history') => void;
+  activeTab: 'generate' | 'scan' | 'history' | 'settings';
+  onChangeTab: (tab: 'generate' | 'scan' | 'history' | 'settings') => void;
 }
 
 const TABS = [
   { id: 'generate', icon: QrCode, label: 'Generate' },
   { id: 'scan', icon: ScanLine, label: 'Scan' },
   { id: 'history', icon: Clock, label: 'History' },
+  { id: 'settings', icon: Settings, label: 'Settings' },
 ] as const;
 
 export default function BottomNav({ activeTab, onChangeTab }: BottomNavProps) {

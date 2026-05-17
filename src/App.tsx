@@ -6,10 +6,15 @@ import BottomNav from './components/BottomNav';
 import GenerateTab from './components/GenerateTab';
 import ScanTab from './components/ScanTab';
 import HistoryTab from './components/HistoryTab';
+import SettingsTab from './components/SettingsTab';
+import AboutPage from './components/AboutPage';
+import PrivacyPage from './components/PrivacyPage';
+import ContactPage from './components/ContactPage';
 import { QRHistoryItem, Theme } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'generate' | 'scan' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'scan' | 'history' | 'settings'>('generate');
+  const [subPage, setSubPage] = useState<'about' | 'privacy' | 'contact' | null>(null);
   const [history, setHistory] = useLocalStorage<QRHistoryItem[]>('qr-history', []);
   const [theme, setTheme] = useLocalStorage<Theme>('qr-theme', 'system');
   const systemPrefersDark = useMediaQuery('(prefers-color-scheme: dark)');
@@ -110,12 +115,22 @@ export default function App() {
                 onClear={clearHistory}
               />
             )}
+            {activeTab === 'settings' && (
+              <SettingsTab onOpenPage={setSubPage} />
+            )}
           </motion.div>
         </AnimatePresence>
       </main>
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      
+      {/* Sub Pages Overlays */}
+      <AnimatePresence>
+        {subPage === 'about' && <AboutPage onClose={() => setSubPage(null)} />}
+        {subPage === 'privacy' && <PrivacyPage onClose={() => setSubPage(null)} />}
+        {subPage === 'contact' && <ContactPage onClose={() => setSubPage(null)} />}
+      </AnimatePresence>
     </div>
   );
 }
