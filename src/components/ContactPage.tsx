@@ -45,6 +45,18 @@ export default function ContactPage({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700/50 flex items-center space-x-4">
+          <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+            <Mail className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-0.5">Email us directly</p>
+            <a href="mailto:koswegenpro@gmail.com" className="text-slate-800 dark:text-slate-200 font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              koswegenpro@gmail.com
+            </a>
+          </div>
+        </div>
+
         {submitted ? (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}

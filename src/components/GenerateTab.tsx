@@ -44,6 +44,13 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
   const [wifiPass, setWifiPass] = useState('');
   const [wifiType, setWifiType] = useState('WPA');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [fgColor, setFgColor] = useState('#000000');
+  const [bgColor, setBgColor] = useState('#ffffff');
+  const [errorCorrection, setErrorCorrection] = useState<'L' | 'M' | 'Q' | 'H'>('H');
+  const [cornerRadius, setCornerRadius] = useState<number>(16);
+
+  const [logoSize, setLogoSize] = useState<number>(48);
+  const [logoExcavate, setLogoExcavate] = useState<boolean>(true);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -133,8 +140,14 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
       canvas.width = img.width + (padding * 2);
       canvas.height = img.height + (padding * 2);
       if (ctx) {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = bgColor;
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(0, 0, canvas.width, canvas.height, cornerRadius);
+          ctx.fill();
+        } else {
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
         ctx.drawImage(img, padding, padding);
         
         const pngFile = canvas.toDataURL('image/png');
@@ -243,6 +256,87 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
         )}
       </div>
 
+      {/* Colors Section */}
+      <div className="space-y-4">
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 ml-1">
+          Colors
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 focus-within:ring-2 focus-within:ring-indigo-500/50">
+              <input 
+                type="color" 
+                value={fgColor} 
+                onChange={(e) => setFgColor(e.target.value)}
+                className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer"
+              />
+            </div>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Foreground</span>
+          </div>
+          <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 focus-within:ring-2 focus-within:ring-indigo-500/50">
+              <input 
+                type="color" 
+                value={bgColor} 
+                onChange={(e) => setBgColor(e.target.value)}
+                className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer"
+              />
+            </div>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Background</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Options Section */}
+      <div className="space-y-4">
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 ml-1">
+          Advanced Options
+        </label>
+        <div className="space-y-6 p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Error Correction</label>
+              <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md">{errorCorrection}</span>
+            </div>
+            <div className="flex space-x-2 bg-slate-50 dark:bg-slate-900/50 p-1 border border-slate-100 dark:border-slate-800 rounded-xl">
+              {(['L', 'M', 'Q', 'H'] as const).map(level => (
+                <button
+                  key={level}
+                  onClick={() => setErrorCorrection(level)}
+                  className={cn(
+                    "flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all",
+                    errorCorrection === level 
+                      ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  )}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Corner Radius</label>
+              <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md">{cornerRadius}px</span>
+            </div>
+            <div className="px-1">
+              <input 
+                type="range" 
+                min="0" 
+                max="48" 
+                value={cornerRadius}
+                onChange={(e) => setCornerRadius(Number(e.target.value))}
+                className="w-full accent-indigo-500 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       {/* Logo Upload Section */}
       <div className="space-y-4">
         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 ml-1">
@@ -263,17 +357,52 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
             />
           </label>
         ) : (
-          <div className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800/50">
-            <div className="flex items-center space-x-3">
-              <img src={logoUrl} alt="Logo preview" className="w-10 h-10 object-contain rounded-lg bg-white border border-slate-100 dark:border-slate-700" />
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Custom Logo</span>
+          <div className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <img src={logoUrl} alt="Logo preview" className="w-10 h-10 object-contain rounded-lg bg-white border border-slate-100 dark:border-slate-700" />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Custom Logo</span>
+              </div>
+              <button 
+                onClick={handleRemoveLogo}
+                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
+                title="Remove logo"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button 
-              onClick={handleRemoveLogo}
-              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            
+            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Logo Size</label>
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md">{logoSize}px</span>
+                </div>
+                <div className="px-1">
+                  <input 
+                    type="range" 
+                    min="24" 
+                    max="64" 
+                    value={logoSize}
+                    onChange={(e) => setLogoSize(Number(e.target.value))}
+                    className="w-full accent-indigo-500 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between px-1">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Excavate Background</label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={logoExcavate}
+                    onChange={(e) => setLogoExcavate(e.target.checked)}
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -285,25 +414,35 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: -20 }}
-            className="flex flex-col items-center bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-slate-100 dark:border-slate-700/50 mt-4"
+            className="flex flex-col items-center bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-slate-100 dark:border-slate-700/50 mt-4 relative group"
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
           >
-            <div className="bg-white p-4 rounded-2xl shadow-sm">
+            <motion.div 
+              className="p-4 shadow-sm relative z-10" 
+              style={{ backgroundColor: bgColor, borderRadius: `${cornerRadius}px` }}
+              animate={{ 
+                boxShadow: ['0px 0px 0px rgba(79, 70, 229, 0)', '0px 4px 20px rgba(79, 70, 229, 0.1)', '0px 0px 0px rgba(79, 70, 229, 0)'] 
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            >
               <QRCodeSVG
                 value={formattedData}
                 size={200}
-                level="H"
+                level={errorCorrection}
+                fgColor={fgColor}
+                bgColor={bgColor}
                 ref={svgRef}
-                className="w-full h-full"
+                className="w-full h-full transform transition-transform duration-500 group-hover:scale-[1.02]"
                 {...(logoUrl ? {
                   imageSettings: {
                     src: logoUrl,
-                    height: 48,
-                    width: 48,
-                    excavate: true,
+                    height: logoSize,
+                    width: logoSize,
+                    excavate: logoExcavate,
                   }
                 } : {})}
               />
-            </div>
+            </motion.div>
             
             <div className="flex w-full space-x-3 mt-8">
               <button
