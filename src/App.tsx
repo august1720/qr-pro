@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalStorage, useMediaQuery } from 'usehooks-ts';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import BottomNav from './components/BottomNav';
 import GenerateTab from './components/GenerateTab';
@@ -17,7 +17,21 @@ export default function App() {
   const [subPage, setSubPage] = useState<'about' | 'privacy' | 'contact' | null>(null);
   const [history, setHistory] = useLocalStorage<QRHistoryItem[]>('qr-history', []);
   const [theme, setTheme] = useLocalStorage<Theme>('qr-theme', 'system');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const systemPrefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const isDark = theme === 'dark' || (theme === 'system' && systemPrefersDark);
 
@@ -93,6 +107,21 @@ export default function App() {
             </div>
           </button>
         </div>
+        <AnimatePresence>
+          {!isOnline && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-rose-500 text-white overflow-hidden"
+            >
+              <div className="flex items-center justify-center space-x-2 py-2 px-4 text-sm font-medium">
+                <WifiOff className="w-4 h-4" />
+                <span>You are offline. QR Pro is working in offline mode.</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       {/* Main Content Area */}

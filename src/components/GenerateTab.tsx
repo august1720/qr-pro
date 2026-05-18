@@ -3,9 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Download, Share2, Type, Link, Wifi, Phone, Mail, 
   MessageCircle, Send, PhoneCall, MessageSquare, 
-  Facebook, Instagram, Twitter, Music2, Youtube, Linkedin, Ghost, Gamepad2, Twitch, Cat, ImagePlus, X
+  Facebook, Instagram, Twitter, Music2, Youtube, Linkedin, Ghost, Gamepad2, Twitch, Cat, ImagePlus, X, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import { QRDataType, QRHistoryItem } from '../types';
 import { cn } from '../lib/utils';
 
@@ -52,6 +54,10 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
   const [logoSize, setLogoSize] = useState<number>(48);
   const [logoExcavate, setLogoExcavate] = useState<boolean>(true);
 
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [batchValues, setBatchValues] = useState('');
+  const [animationStyle, setAnimationStyle] = useState<'none' | 'pulse' | 'float' | 'color-shift'>('pulse');
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -68,12 +74,12 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
   };
   
   // Format data based on type
-  const getFormattedData = () => {
-    if (!value && type !== 'WiFi') return '';
-    let val = value.trim();
-    switch(type) {
+  const formatData = (currentType: string, val: string) => {
+    if (!val && currentType !== 'WiFi') return '';
+    val = val.trim();
+    switch(currentType) {
       case 'WiFi':
-        return `WIFI:T:${wifiType};S:${value};P:${wifiPass};;`;
+        return `WIFI:T:${wifiType};S:${val || value};P:${wifiPass};;`;
       case 'Phone':
         return `tel:${val}`;
       case 'Email':
@@ -123,8 +129,15 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
     }
   };
 
+  const getFormattedData = () => formatData(type, value);
+
   const formattedData = getFormattedData();
   const svgRef = useRef<SVGSVGElement>(null);
+  const svgRefs = useRef<(SVGSVGElement | null)[]>([]);
+
+  const batchList = isBatchMode 
+    ? batchValues.split('\n').filter(v => v.trim().length > 0)
+    : [];
 
   const handleDownload = () => {
     if (!svgRef.current || !formattedData) return;
@@ -168,6 +181,59 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
     img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
   };
 
+  const handleBatchDownload = async () => {
+    if (batchList.length === 0) return;
+    const zip = new JSZip();
+    
+    const promises = batchList.map((val, index) => {
+      return new Promise<void>((resolve) => {
+        const svg = svgRefs.current[index];
+        if (!svg) { resolve(); return; }
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = () => {
+          const padding = 24;
+          canvas.width = img.width + (padding * 2);
+          canvas.height = img.height + (padding * 2);
+          if (ctx) {
+            ctx.fillStyle = bgColor;
+            if (typeof ctx.roundRect === 'function') {
+              ctx.beginPath();
+              ctx.roundRect(0, 0, canvas.width, canvas.height, cornerRadius);
+              ctx.fill();
+            } else {
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.drawImage(img, padding, padding);
+            
+            const pngData = canvas.toDataURL('image/png').split(',')[1];
+            zip.file(`QR_${type}_${index + 1}.png`, pngData, { base64: true });
+            
+            onSave({
+              id: Math.random().toString(36).substr(2, 9),
+              type,
+              data: formatData(type, val),
+              createdAt: Date.now(),
+              label: val || `Batch item ${index + 1}`
+            });
+            resolve();
+          } else {
+            resolve();
+          }
+        };
+        img.onerror = () => resolve();
+        img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
+      });
+    });
+
+    await Promise.all(promises);
+    const content = await zip.generateAsync({ type: 'blob' });
+    saveAs(content, `QR_Batch_${Date.now()}.zip`);
+  };
+
   const handleShare = async () => {
     if (!formattedData) return;
     if (navigator.share) {
@@ -184,6 +250,35 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
       alert('Sharing not supported on this browser');
     }
   };
+
+  const getAnimationProps = () => {
+    switch(animationStyle) {
+      case 'pulse':
+        return {
+          animate: { 
+            boxShadow: ['0px 0px 0px rgba(79, 70, 229, 0)', '0px 8px 30px rgba(79, 70, 229, 0.4)', '0px 0px 0px rgba(79, 70, 229, 0)'] 
+          },
+          transition: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+        };
+      case 'float':
+        return {
+          animate: { y: [0, -10, 0] },
+          transition: { duration: 3, repeat: Infinity, ease: "easeInOut" }
+        };
+      case 'color-shift':
+        return {
+          animate: { filter: ['hue-rotate(0deg)', 'hue-rotate(180deg)', 'hue-rotate(0deg)'] },
+          transition: { duration: 5, repeat: Infinity, ease: "linear" }
+        };
+      default:
+        return {};
+    }
+  };
+
+  const animProps = getAnimationProps();
+
+  const isPreviewVisible = isBatchMode ? batchList.length > 0 : !!formattedData;
+  const previewData = isBatchMode ? formatData(type, batchList[0]) : formattedData;
 
   return (
     <div className="flex flex-col h-full space-y-6 pb-24 px-4 sm:px-6 pt-6 max-w-md mx-auto w-full">
@@ -213,11 +308,36 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
 
       {/* Input Section */}
       <div className="space-y-4">
-        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 ml-1">
-          Content
-        </label>
+        <div className="flex items-center justify-between ml-1">
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Content
+          </label>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-medium text-slate-500">Batch Mode</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer"
+                checked={isBatchMode}
+                onChange={(e) => setIsBatchMode(e.target.checked)}
+              />
+              <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+        </div>
         
-        {type === 'WiFi' ? (
+        {isBatchMode ? (
+          <div className="space-y-2">
+            <textarea
+              placeholder={`Enter multiple items, one per line:\n${TYPE_CONFIG[type].placeholder}\n...`}
+              value={batchValues}
+              onChange={(e) => setBatchValues(e.target.value)}
+              rows={6}
+              className="w-full px-4 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-sm transition-all resize-none text-sm leading-relaxed"
+            />
+            <p className="text-xs text-slate-500 ml-1">Generated QR codes will be available for batch download.</p>
+          </div>
+        ) : type === 'WiFi' ? (
           <div className="space-y-3">
             <input
               type="text"
@@ -294,6 +414,28 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
         </label>
         <div className="space-y-6 p-5 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
           
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Animation Style</label>
+            </div>
+            <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900/50 p-1 border border-slate-100 dark:border-slate-800 rounded-xl">
+              {(['none', 'pulse', 'float', 'color-shift'] as const).map(anim => (
+                <button
+                  key={anim}
+                  onClick={() => setAnimationStyle(anim)}
+                  className={cn(
+                    "py-1.5 text-sm font-semibold rounded-lg transition-all capitalize",
+                    animationStyle === anim 
+                      ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  )}
+                >
+                  {anim.replace('-', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div className="flex justify-between items-center px-1">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Error Correction</label>
@@ -407,31 +549,60 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
         )}
       </div>
 
+      {/* Batch Renderer (Hidden) */}
+      {isBatchMode && batchList.length > 0 && (
+        <div style={{ display: 'none' }}>
+          {batchList.map((val, idx) => (
+            <QRCodeSVG
+              key={`batch-${idx}`}
+              value={formatData(type, val)}
+              size={200}
+              level={errorCorrection}
+              fgColor={fgColor}
+              bgColor={bgColor}
+              ref={(el) => (svgRefs.current[idx] = el)}
+              {...(logoUrl ? {
+                imageSettings: {
+                  src: logoUrl,
+                  height: logoSize,
+                  width: logoSize,
+                  excavate: logoExcavate,
+                }
+              } : {})}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Preview Section */}
       <AnimatePresence mode="popLayout">
-        {formattedData && (
+        {isPreviewVisible && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: -20 }}
             className="flex flex-col items-center bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-slate-100 dark:border-slate-700/50 mt-4 relative group"
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            whileHover={animationStyle !== 'none' ? { y: -4, transition: { duration: 0.2 } } : {}}
           >
+            {isBatchMode && (
+               <div className="absolute top-4 right-4 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center shadow-sm">
+                 <Layers className="w-3.5 h-3.5 mr-1" />
+                 {batchList.length} items
+               </div>
+            )}
+            
             <motion.div 
               className="p-4 shadow-sm relative z-10" 
               style={{ backgroundColor: bgColor, borderRadius: `${cornerRadius}px` }}
-              animate={{ 
-                boxShadow: ['0px 0px 0px rgba(79, 70, 229, 0)', '0px 4px 20px rgba(79, 70, 229, 0.1)', '0px 0px 0px rgba(79, 70, 229, 0)'] 
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              {...animProps}
             >
               <QRCodeSVG
-                value={formattedData}
+                value={previewData}
                 size={200}
                 level={errorCorrection}
                 fgColor={fgColor}
                 bgColor={bgColor}
-                ref={svgRef}
+                ref={!isBatchMode ? svgRef : undefined}
                 className="w-full h-full transform transition-transform duration-500 group-hover:scale-[1.02]"
                 {...(logoUrl ? {
                   imageSettings: {
@@ -445,20 +616,32 @@ export default function GenerateTab({ onSave }: GenerateTabProps) {
             </motion.div>
             
             <div className="flex w-full space-x-3 mt-8">
-              <button
-                onClick={handleShare}
-                className="flex-1 flex items-center justify-center space-x-2 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-2xl font-medium transition-colors"
-              >
-                <Share2 className="w-5 h-5" />
-                <span>Share</span>
-              </button>
-              <button
-                onClick={handleDownload}
-                className="flex-1 flex items-center justify-center space-x-2 py-3.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-2xl font-medium transition-all shadow-md shadow-indigo-500/25"
-              >
-                <Download className="w-5 h-5" />
-                <span>Save PNG</span>
-              </button>
+              {isBatchMode ? (
+                <button
+                  onClick={handleBatchDownload}
+                  className="w-full flex items-center justify-center space-x-2 py-3.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-2xl font-medium transition-all shadow-md shadow-indigo-500/25"
+                >
+                  <Layers className="w-5 h-5" />
+                  <span>Download {batchList.length} QRs (.zip)</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleShare}
+                    className="flex-1 flex items-center justify-center space-x-2 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-2xl font-medium transition-colors"
+                  >
+                    <Share2 className="w-5 h-5" />
+                    <span>Share</span>
+                  </button>
+                  <button
+                    onClick={handleDownload}
+                    className="flex-1 flex items-center justify-center space-x-2 py-3.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-2xl font-medium transition-all shadow-md shadow-indigo-500/25"
+                  >
+                    <Download className="w-5 h-5" />
+                    <span>Save PNG</span>
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         )}
