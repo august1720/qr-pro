@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
-import { ScanLine, Copy, ExternalLink, RefreshCw, Wifi, UserPlus, Mail, Phone, MessageSquare, Globe, Search } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { ScanLine, Copy, ExternalLink, RefreshCw, Wifi, UserPlus, Mail, Phone, MessageSquare, Globe, Search, SwitchCamera, ImagePlus, Camera } from 'lucide-react';
 import { motion } from 'motion/react';
 import { QRHistoryItem, QRDataType } from '../types';
 
@@ -82,71 +82,99 @@ const parseQRCode = (text: string) => {
 
 export default function ScanTab({ onScan }: ScanTabProps) {
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const onScanRef = useRef(onScan);
 
   useEffect(() => {
-    // Only initialize if we haven't scanned anything yet to avoid re-mounting loops
-    if (scanResult) return;
+    onScanRef.current = onScan;
+  }, [onScan]);
 
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-    };
+  const handleScanSuccess = (decodedText: string) => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      scannerRef.current.pause();
+    }
+    setScanResult(decodedText);
+    const parsed = parseQRCode(decodedText);
+    onScanRef.current({
+      id: Math.random().toString(36).substr(2, 9),
+      type: parsed.type as any,
+      data: decodedText,
+      createdAt: Date.now(),
+      label: 'Scanned Code'
+    });
+  };
 
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "qr-reader",
-      config,
-      false
-    );
-
-    html5QrcodeScanner.render(
-      (decodedText) => {
-        // Pause scanning first
-        if (html5QrcodeScanner.getState && html5QrcodeScanner.getState() !== 3) {
-           try { html5QrcodeScanner.pause(); } catch(e) {}
-        }
-        
-        html5QrcodeScanner.clear().then(() => {
-          setScanResult(decodedText);
-
-          // Determine type basic logic
-          let type: QRDataType = 'Text';
-          if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) type = 'URL';
-          else if (decodedText.startsWith('WIFI:')) type = 'WiFi';
-          else if (decodedText.startsWith('mailto:')) type = 'Email';
-          else if (decodedText.startsWith('tel:')) type = 'Phone';
-          else if (decodedText.startsWith('BEGIN:VCARD') || decodedText.startsWith('MECARD:')) type = 'Contact';
-          else if (decodedText.startsWith('SMSTO:')) type = 'SMS';
-
-          onScan({
-            id: Math.random().toString(36).substr(2, 9),
-            type,
-            data: decodedText,
-            createdAt: Date.now(),
-            label: 'Scanned Code'
-          });
-        }).catch(err => {
-          console.error("Failed to clear scanner", err);
-          // Fallback if clear fails
-          setScanResult(decodedText);
-        });
-      },
-      (error) => {
-        // Ignored, continuous scanning
+  const startCamera = async (mode: 'environment' | 'user') => {
+    try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("qr-reader");
       }
-    );
+      if (scannerRef.current.isScanning) {
+        await scannerRef.current.stop();
+      }
+      
+      await scannerRef.current.start(
+        { facingMode: mode },
+        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        handleScanSuccess,
+        undefined
+      );
+      setIsCameraActive(true);
+      setFacingMode(mode);
+    } catch (err) {
+      console.error("Camera start error:", err);
+      setIsCameraActive(false);
+    }
+  };
+
+  useEffect(() => {
+    startCamera('environment');
 
     return () => {
-      try {
-        html5QrcodeScanner.clear().catch(e => {
-            console.warn("Scanner clear error ignored on unmount", e);
-        });
-      } catch (e) {
-        console.error("Failed to clear scanner on unmount.");
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(console.error);
       }
     };
-  }, [scanResult, onScan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleCamera = () => {
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    startCamera(newMode);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!scannerRef.current) {
+      scannerRef.current = new Html5Qrcode("qr-reader");
+    }
+    
+    try {
+      if (scannerRef.current.isScanning) {
+        await scannerRef.current.stop();
+        setIsCameraActive(false);
+      }
+      const decodedText = await scannerRef.current.scanFile(file, true);
+      handleScanSuccess(decodedText);
+    } catch (err) {
+      console.error(err);
+      alert('Could not find or decode a QR code in the image.');
+      startCamera(facingMode); // restart camera
+    }
+    
+    // clear input
+    e.target.value = '';
+  };
+
+  const handleScanAnother = () => {
+    setScanResult(null);
+    startCamera(facingMode);
+  };
 
   const handleCopy = () => {
     if (scanResult) {
@@ -211,14 +239,46 @@ export default function ScanTab({ onScan }: ScanTabProps) {
         </p>
       </div>
 
-      <div className={scanResult ? 'hidden' : 'block'}>
+      <div className={scanResult ? 'hidden' : 'block space-y-4'}>
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="overflow-hidden rounded-3xl bg-slate-900 ring-4 ring-slate-100 dark:ring-slate-800 shadow-xl"
+          className="relative overflow-hidden rounded-3xl bg-slate-900 ring-4 ring-slate-100 dark:ring-slate-800 shadow-xl min-h-[300px]"
         >
-          <div id="qr-reader" className="w-full h-full [&>div]:border-none [&>div>video]:rounded-3xl [&_a]:hidden" />
+          <div id="qr-reader" className="w-full h-full [&>video]:object-cover" />
+          
+          {isCameraActive && (
+            <div className="absolute top-4 right-4 z-10 flex space-x-2">
+              <button 
+                onClick={toggleCamera} 
+                className="p-3 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-black/70 transition-colors shadow-lg"
+                title="Switch Camera"
+              >
+                <SwitchCamera className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
+          {!isCameraActive && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-900 text-center z-20">
+              <Camera className="w-12 h-12 text-slate-500 mb-4" />
+              <button
+                onClick={() => startCamera(facingMode)}
+                className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full shadow-md transition-colors"
+              >
+                QR ကုဒ် စကင်န်ဖတ်ရန် ကင်မရာ ခွင့်ပြုချက် လိုအပ်ပါသည်
+              </button>
+            </div>
+          )}
         </motion.div>
+
+        {!scanResult && (
+          <label className="flex items-center justify-center space-x-2 py-3.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl font-medium transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shadow-sm">
+            <ImagePlus className="w-5 h-5 opacity-70" />
+            <span>Scan from Photo Gallery</span>
+            <input type="file" accept="image/png, image/jpeg, image/jpg" className="hidden" onChange={handleFileUpload} />
+          </label>
+        )}
       </div>
 
       {scanResult && (
@@ -300,7 +360,7 @@ export default function ScanTab({ onScan }: ScanTabProps) {
           </div>
 
           <button
-            onClick={() => setScanResult(null)}
+            onClick={handleScanAnother}
             className="w-full flex items-center justify-center space-x-2 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl font-medium transition-all shadow-md mt-4"
           >
             <RefreshCw className="w-4 h-4" />
